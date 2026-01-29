@@ -2,6 +2,7 @@ use std::fmt::Write;
 use std::io::BufReader;
 use std::ops::{self, Deref};
 
+use crate::ai;
 use crate::job::Job;
 
 use super::*;
@@ -1946,6 +1947,53 @@ fn hsplit_new(cx: &mut compositor::Context, _args: Args, event: PromptEvent) -> 
     Ok(())
 }
 
+fn ai_start(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+    ai::start(cx, args.first())
+}
+
+fn ai_resume(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+    ai::resume(cx, args.first())
+}
+
+fn ai_send(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+    let prompt = if args.is_empty() {
+        None
+    } else {
+        Some(args.join(" "))
+    };
+    ai::send(cx, prompt)
+}
+
+fn ai_quit(cx: &mut compositor::Context, _args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+    ai::quit(cx)
+}
+
+fn ai_grow(cx: &mut compositor::Context, _args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+    ai::resize(cx, helix_view::tree::Resize::Grow)
+}
+
+fn ai_shrink(cx: &mut compositor::Context, _args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+    ai::resize(cx, helix_view::tree::Resize::Shrink)
+}
+
 fn debug_eval(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> anyhow::Result<()> {
     if event != PromptEvent::Validate {
         return Ok(());
@@ -3454,6 +3502,72 @@ pub const TYPABLE_COMMAND_LIST: &[TypableCommand] = &[
         completer: CommandCompleter::none(),
         signature: Signature {
             positionals: (1, Some(1)),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "ai-start",
+        aliases: &[],
+        doc: "Start AI session (optional driver name).",
+        fun: ai_start,
+        completer: CommandCompleter::none(),
+        signature: Signature {
+            positionals: (0, Some(1)),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "ai-resume",
+        aliases: &[],
+        doc: "Resume AI session from driver session list.",
+        fun: ai_resume,
+        completer: CommandCompleter::none(),
+        signature: Signature {
+            positionals: (0, Some(1)),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "ai-send",
+        aliases: &[],
+        doc: "Send prompt from ai/input buffer or inline text.",
+        fun: ai_send,
+        completer: CommandCompleter::none(),
+        signature: Signature {
+            positionals: (0, None),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "ai-grow",
+        aliases: &[],
+        doc: "Grow the focused AI split.",
+        fun: ai_grow,
+        completer: CommandCompleter::none(),
+        signature: Signature {
+            positionals: (0, Some(0)),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "ai-shrink",
+        aliases: &[],
+        doc: "Shrink the focused AI split.",
+        fun: ai_shrink,
+        completer: CommandCompleter::none(),
+        signature: Signature {
+            positionals: (0, Some(0)),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "ai-quit",
+        aliases: &[],
+        doc: "Stop the active AI session.",
+        fun: ai_quit,
+        completer: CommandCompleter::none(),
+        signature: Signature {
+            positionals: (0, Some(0)),
             ..Signature::DEFAULT
         },
     },

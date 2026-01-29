@@ -52,6 +52,18 @@ pub enum Layout {
     // could explore stacked/tabbed
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Resize {
+    Grow,
+    Shrink,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dimension {
+    Fixed(u16),
+    Percent(u16),
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Up,
@@ -65,6 +77,7 @@ pub struct Container {
     layout: Layout,
     children: Vec<ViewId>,
     area: Rect,
+    sizes: Vec<u16>,
 }
 
 impl Container {
@@ -73,6 +86,18 @@ impl Container {
             layout,
             children: Vec::new(),
             area: Rect::default(),
+            sizes: Vec::new(),
+        }
+    }
+
+    fn ensure_sizes(&mut self) {
+        if self.sizes.len() != self.children.len() {
+            self.sizes = vec![1; self.children.len()];
+        }
+        for size in &mut self.sizes {
+            if *size == 0 {
+                *size = 1;
+            }
         }
     }
 }
@@ -119,6 +144,7 @@ impl Tree {
             _ => unreachable!(),
         };
 
+        let old_len = container.children.len();
         // insert node after the current item if there is children already
         let pos = if container.children.is_empty() {
             0
@@ -132,6 +158,11 @@ impl Tree {
         };
 
         container.children.insert(pos, node);
+        if container.sizes.len() == old_len {
+            container.sizes.insert(pos, 1);
+        } else {
+            container.ensure_sizes();
+        }
         // focus the new node
         self.focus = node;
 
@@ -157,6 +188,7 @@ impl Tree {
             _ => unreachable!(),
         };
         if container.layout == layout {
+            let old_len = container.children.len();
             // insert node after the current item if there is children already
             let pos = if container.children.is_empty() {
                 0
@@ -169,6 +201,11 @@ impl Tree {
                 pos + 1
             };
             container.children.insert(pos, node);
+            if container.sizes.len() == old_len {
+                container.sizes.insert(pos, 1);
+            } else {
+                container.ensure_sizes();
+            }
             self.nodes[node].parent = parent;
         } else {
             let mut split = Node::container(layout);
@@ -184,6 +221,7 @@ impl Tree {
             };
             container.children.push(focus);
             container.children.push(node);
+            container.ensure_sizes();
             self.nodes[focus].parent = split;
             self.nodes[node].parent = split;
 
@@ -241,9 +279,17 @@ impl Tree {
 
         if let Some(new) = replacement {
             container.children[pos] = new;
+            if container.sizes.len() != container.children.len() {
+                container.ensure_sizes();
+            }
             self.nodes[new].parent = parent;
         } else {
             container.children.remove(pos);
+            if container.sizes.len() == container.children.len() + 1 {
+                container.sizes.remove(pos);
+            } else {
+                container.ensure_sizes();
+            }
         }
     }
 
@@ -382,18 +428,16 @@ impl Tree {
                     match container.layout {
                         Layout::Horizontal => {
                             let len = container.children.len();
-
-                            let height = area.height / len as u16;
+                            container.ensure_sizes();
+                            let total = area.height;
+                            let sizes = split_sizes(total, &container.sizes);
 
                             let mut child_y = area.y;
 
                             for (i, child) in container.children.iter().enumerate() {
-                                let mut area = Rect::new(
-                                    container.area.x,
-                                    child_y,
-                                    container.area.width,
-                                    height,
-                                );
+                                let height = sizes[i];
+                                let mut area =
+                                    Rect::new(container.area.x, child_y, container.area.width, height);
                                 child_y += height;
 
                                 // last child takes the remaining width because we can get uneven
@@ -413,11 +457,13 @@ impl Tree {
                             let total_gap = inner_gap * len_u16.saturating_sub(2);
 
                             let used_area = area.width.saturating_sub(total_gap);
-                            let width = used_area / len_u16;
+                            container.ensure_sizes();
+                            let sizes = split_sizes(used_area, &container.sizes);
 
                             let mut child_x = area.x;
 
                             for (i, child) in container.children.iter().enumerate() {
+                                let width = sizes[i];
                                 let mut area = Rect::new(
                                     child_x,
                                     container.area.y,
@@ -669,6 +715,86 @@ impl Tree {
     pub fn area(&self) -> Rect {
         self.area
     }
+
+    pub fn resize_buffer(&mut self, id: ViewId, resize: Resize, dimension: Dimension) -> bool {
+        let parent = self.nodes[id].parent;
+        if parent == id {
+            return false;
+        }
+
+        let container = self.container_mut(parent);
+        let len = container.children.len();
+        if len < 2 {
+            return false;
+        }
+        container.ensure_sizes();
+
+        let pos = match container.children.iter().position(|&child| child == id) {
+            Some(pos) => pos,
+            None => return false,
+        };
+
+        let neighbor = if pos + 1 < len {
+            pos + 1
+        } else if pos > 0 {
+            pos - 1
+        } else {
+            return false;
+        };
+
+        let total = match container.layout {
+            Layout::Horizontal => container.area.height,
+            Layout::Vertical => {
+                let len_u16 = len as u16;
+                let inner_gap = 1u16;
+                let total_gap = inner_gap * len_u16.saturating_sub(2);
+                container.area.width.saturating_sub(total_gap)
+            }
+        };
+
+        if total == 0 {
+            return false;
+        }
+
+        let mut sizes = split_sizes(total, &container.sizes);
+        let mut delta = match dimension {
+            Dimension::Fixed(value) => value,
+            Dimension::Percent(value) => {
+                let clamped = value.min(100);
+                ((total as u32 * clamped as u32) / 100) as u16
+            }
+        };
+
+        if delta == 0 {
+            return false;
+        }
+
+        let min_size = 1u16;
+        match resize {
+            Resize::Grow => {
+                let available = sizes[neighbor].saturating_sub(min_size);
+                if available == 0 {
+                    return false;
+                }
+                delta = delta.min(available);
+                sizes[pos] = sizes[pos].saturating_add(delta);
+                sizes[neighbor] = sizes[neighbor].saturating_sub(delta);
+            }
+            Resize::Shrink => {
+                let available = sizes[pos].saturating_sub(min_size);
+                if available == 0 {
+                    return false;
+                }
+                delta = delta.min(available);
+                sizes[pos] = sizes[pos].saturating_sub(delta);
+                sizes[neighbor] = sizes[neighbor].saturating_add(delta);
+            }
+        }
+
+        container.sizes = sizes;
+        self.recalculate();
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -684,6 +810,30 @@ impl<'a> Traverse<'a> {
             stack: vec![tree.root],
         }
     }
+}
+
+fn split_sizes(total: u16, weights: &[u16]) -> Vec<u16> {
+    if weights.is_empty() {
+        return Vec::new();
+    }
+    let total_weight: u32 = weights.iter().map(|w| (*w).max(1) as u32).sum();
+    if total_weight == 0 {
+        return vec![0; weights.len()];
+    }
+
+    let mut sizes = Vec::with_capacity(weights.len());
+    let mut used = 0u16;
+    for (i, weight) in weights.iter().enumerate() {
+        let size = if i == weights.len() - 1 {
+            total.saturating_sub(used)
+        } else {
+            let size = ((total as u32 * (*weight).max(1) as u32) / total_weight) as u16;
+            used = used.saturating_add(size);
+            size
+        };
+        sizes.push(size);
+    }
+    sizes
 }
 
 impl<'a> Iterator for Traverse<'a> {

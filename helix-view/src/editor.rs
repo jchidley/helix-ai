@@ -2071,6 +2071,15 @@ impl Editor {
         };
     }
 
+    pub fn resize_buffer(&mut self, view_id: ViewId, resize: tree::Resize, dimension: tree::Dimension) -> bool {
+        if self.tree.resize_buffer(view_id, resize, dimension) {
+            self._refresh();
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn focus(&mut self, view_id: ViewId) {
         if self.tree.focus == view_id {
             return;

@@ -1515,6 +1515,7 @@ dependencies = [
  "dashmap",
  "fern",
  "futures-util",
+ "globset",
  "grep-matcher",
  "grep-regex",
  "grep-searcher",
