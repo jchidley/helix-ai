@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "kind": "repo-preflight-disposition",
+  "identity": "github.com/jchidley/helix-ai",
+  "decision": "no-change-required",
+  "reviewedCommit": "a55888c0d42d0fb5184037c4d3376483fe0f6a0d",
+  "operation": "inspect",
+  "files": {
+    "Cargo.toml": "2644ee7566dd60680247bbb3894c57ced5214e2c80c10cf1a27e4b2e6504fd59",
+    "README.md": "67979f40c4a95b750497780b83652f8292588ef0c25a740b3942ad4cb9a98639",
+    "helix-term/Cargo.toml": "75f4b76356c8b9e6906a5ae0c8bdb68c48a4686e62b70343581934bee0c59af3",
+    "helix-term/src/handlers/prompt.rs": "2c34e87e81be72b9a1ec110698c93d94800d61c43ee2d368588fee783d8ccbed"
+  },
+  "profileId": "4e2f946311539a962f68da645c3a22ac068d8be0022fc08f8ed3cae14331fcc2",
+  "reviewer": "controller-pi-session-01a07795-640e-7529-b8bf-bbdc58622b3e",
+  "summary": "Current reviewed guidance scope requires no repository-local change.",
+  "evidenceSummary": [
+    "Retain no-local-surface: 2,028-entry inventory, full editor README, workspace and terminal manifests, and actual handlers/prompt.rs. The prompt hook removes a UI prompt on DocumentFocusLost; Gemini/jjtemplate paths are syntax queries and CI is upstream editor infrastructure. Repository suffix alone does not establish an AI integration. No editor build or install.",
+    "Account-wide rollout identity, source scope, disposition, and validation evidence were reconciled."
+  ],
+  "limitations": [
+    "Prior semantic findings retained as historical evidence, not independently re-certified by this verification pass."
+  ],
+  "recordedAt": "2026-09-06T22:49:05.180Z",
+  "publicationApproved": false
+}
